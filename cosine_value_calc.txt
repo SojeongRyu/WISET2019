@@ -1,0 +1,65 @@
+import csv
+from sklearn import datasets
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
+import math
+import pandas as pd
+
+from konlpy.tag import Kkma
+from konlpy.utils import pprint
+kkma = Kkma()
+from konlpy.corpus import kobill
+docs_ko = [kobill.open(i).read() for i in kobill.fileids()]
+#Tokenize
+from konlpy.tag import Okt; t = Okt()
+pos = lambda d: ['/'.join(p) for p in t.pos(d)]
+texts_ko = [pos(doc) for doc in docs_ko]
+
+from gensim.models import word2vec
+wv_model_ko = word2vec.Word2Vec(texts_ko, size = 200, window = 4, workers= 4, iter =100, sg=1)
+wv_model_ko.init_sims(replace=True)
+wv_model_ko.save('ko_word2vec_e.model')
+
+from konlpy.tag import Kkma
+kkma = Kkma()
+
+with open('sample1.csv') as data1:
+    lines = data1.readlines()
+dataList=[]
+for line in lines:
+    line = line.strip()
+    dataList.append(line.split(','))
+
+onlyWordList=list();
+b = list();
+want_word = input();
+b = wv_model_ko.wv.most_similar(pos(want_word), topn=500)
+
+#for i in range(len(b)):
+    #print(b[i])
+
+for i in range(len(b)):
+    s = b[i][0].split('/')
+    if s[1]=="Noun" or s[1]=="KoreanParticle" or s[1]=="Adjective":
+        onlyWordList.append((s[0],b[i][1]))
+    elif s[1]=="Verb":
+        tok_str = ((kkma.pos(s[0]))[0])[1]
+        if tok_str=="Noun" or tok_str=="koreanParticle" or tok_str=="Adjective":
+            onlyWordList.append(((kkma.pos(s[0]))[0])[0],b[i][1])
+print("-------")
+
+pos_score=0.0
+neu_score=0.0
+neg_score=0.0
+#neg neu pos
+for i in range(len(onlyWordList)):
+    for j in range(len(dataList)):
+        if onlyWordList[i][0]==dataList[j][0]:
+            #print(onlyWordList[i])
+            pos_score += float(dataList[j][4])*onlyWordList[i][1]
+            neu_score += float(dataList[j][3])*onlyWordList[i][1]
+            neg_score += float(dataList[j][2])*onlyWordList[i][1]
+            
+print("pos: ",pos_score,"\n");
+print("neu: ",neu_score,"\n");
+print("neg: ",neg_score,"\n");
